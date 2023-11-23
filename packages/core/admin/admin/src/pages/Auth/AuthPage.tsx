@@ -4,6 +4,7 @@ import { Redirect, useHistory, useRouteMatch } from 'react-router-dom';
 import { useEnterprise } from '../../hooks/useEnterprise';
 
 import { Login as LoginCE } from './components/Login';
+import { SetSession } from './components/SetSession';
 import { AuthType, FORMS, FormDictionary } from './constants';
 
 /* -------------------------------------------------------------------------------------------------
@@ -64,6 +65,11 @@ const AuthPage = ({ hasAdmin }: AuthPageProps) => {
         }}
       />
     );
+  }
+  if (authType === 'set-session' /** && TBD */ ) {
+    // Assign the component to set the user session
+    console.log("running set session");
+    return <SetSession />;
   }
 
   if (Login && authType === 'login') {

@@ -206,9 +206,15 @@ const Login = ({ children }: LoginProps) => {
               </Form>
             )}
           </Formik>
-          <Button fullWidth>
-                    HOLA
-          </Button>
+          <div className="App">
+            <Button fullWidth type="submit"
+              onClick={() =>
+                (window.location = 'http://localhost:1337/api/connect/google')
+              }
+            >
+              Login via Google
+            </Button>
+          </div>
           {children}
         </LayoutContent>
         <Flex justifyContent="center">
