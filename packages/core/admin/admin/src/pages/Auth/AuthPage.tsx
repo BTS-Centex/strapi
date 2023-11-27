@@ -4,7 +4,6 @@ import { Redirect, useHistory, useRouteMatch } from 'react-router-dom';
 import { useEnterprise } from '../../hooks/useEnterprise';
 
 import { Login as LoginCE } from './components/Login';
-import { SetSession } from './components/SetSession';
 import { AuthType, FORMS, FormDictionary } from './constants';
 
 /* -------------------------------------------------------------------------------------------------
@@ -51,25 +50,6 @@ const AuthPage = ({ hasAdmin }: AuthPageProps) => {
   // the user is already logged in
   if (!Component || (hasAdmin && authType === 'register-admin') || auth.getToken()) {
     return <Redirect to="/" />;
-  }
-
-  // Redirect the user to the register-admin if it is the first user
-  if (!hasAdmin && authType !== 'register-admin') {
-    return (
-      <Redirect
-        to={{
-          pathname: '/auth/register-admin',
-          // Forward the `?redirectTo` from /auth/login
-          // /abc => /auth/login?redirectTo=%2Fabc => /auth/register-admin?redirectTo=%2Fabc
-          search,
-        }}
-      />
-    );
-  }
-  if (authType === 'set-session' /** && TBD */ ) {
-    // Assign the component to set the user session
-    console.log("running set session");
-    return <SetSession />;
   }
 
   if (Login && authType === 'login') {
