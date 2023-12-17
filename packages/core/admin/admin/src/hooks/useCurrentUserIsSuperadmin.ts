@@ -10,7 +10,6 @@ export function useCurrentUserIsSuperadmin() {
             .then(({ data }) => {
                 const me = data?.data
                 const _isSuperAdmin = !!me?.roles?.find((role: { code: string }) => role.code === 'strapi-super-admin')
-                console.log(_isSuperAdmin)
                 setIsSuperadmin(_isSuperAdmin)
             })
     })
