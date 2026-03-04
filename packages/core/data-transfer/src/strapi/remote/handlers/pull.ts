@@ -47,6 +47,27 @@ export const createPullController = handlerControllerFactory<Partial<PullHandler
     delete this.provider;
   },
 
+  onInfo(message) {
+    this.diagnostics?.report({
+      details: {
+        message,
+        origin: 'pull-handler',
+        createdAt: new Date(),
+      },
+      kind: 'info',
+    });
+  },
+  onWarning(message) {
+    this.diagnostics?.report({
+      details: {
+        message,
+        createdAt: new Date(),
+        origin: 'pull-handler',
+      },
+      kind: 'warning',
+    });
+  },
+
   assertValidTransferAction(this: PullHandler, action) {
     // Abstract the constant to string[] to allow looser check on the given action
     const validActions = VALID_TRANSFER_ACTIONS as unknown as string[];
@@ -85,7 +106,7 @@ export const createPullController = handlerControllerFactory<Partial<PullHandler
     // Regular command message (init, end, status)
     if (type === 'command') {
       const { command } = msg;
-
+      this.onInfo(`received command:${command} uuid:${uuid}`);
       await this.executeAndRespond(uuid, () => {
         this.assertValidTransferCommand(command);
 
@@ -100,6 +121,7 @@ export const createPullController = handlerControllerFactory<Partial<PullHandler
 
     // Transfer message (the transfer must be init first)
     else if (type === 'transfer') {
+      this.onInfo(`received transfer action:${msg.action} step:${msg.kind} uuid:${uuid}`);
       await this.executeAndRespond(uuid, async () => {
         await this.verifyAuth();
 
@@ -132,10 +154,13 @@ export const createPullController = handlerControllerFactory<Partial<PullHandler
 
     this.assertValidTransferAction(action);
 
+    if (action === 'bootstrap') {
+      return this.provider?.[action](this.diagnostics);
+    }
     return this.provider?.[action]();
   },
 
-  async flush(this: PullHandler, stage: Exclude<Client.TransferPullStep, 'assets'>, id) {
+  async flush(this: PullHandler, stage: Client.TransferPullStep, id) {
     type Stage = typeof stage;
     const batchSize = 1024 * 1024;
     let batch = [] as Client.GetTransferPullStreamData<Stage>;
@@ -158,14 +183,24 @@ export const createPullController = handlerControllerFactory<Partial<PullHandler
 
     try {
       for await (const chunk of stream) {
-        batch.push(chunk);
-        if (batchLength() >= batchSize) {
-          await sendBatch();
-          batch = [];
+        if (stage !== 'assets') {
+          batch.push(chunk);
+          if (batchLength() >= batchSize) {
+            await sendBatch();
+            batch = [];
+          }
+        } else {
+          await this.confirm({
+            type: 'transfer',
+            data: [chunk],
+            ended: false,
+            error: null,
+            id,
+          });
         }
       }
 
-      if (batch.length > 0) {
+      if (batch.length > 0 && stage !== 'assets') {
         await sendBatch();
         batch = [];
       }

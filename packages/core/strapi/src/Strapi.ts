@@ -381,7 +381,8 @@ class Strapi implements StrapiI {
           numberOfComponents: _.size(this.components),
           numberOfDynamicZones: getNumberOfDynamicZones(),
           numberOfCustomControllers: Object.values<Common.Controller>(this.controllers).filter(
-            factories.isCustomController
+            // TODO: Fix this at the content API loader level to prevent future types issues
+            (controller) => controller !== undefined && factories.isCustomController(controller)
           ).length,
           environment: this.config.environment,
           // TODO: to add back
@@ -591,7 +592,12 @@ class Strapi implements StrapiI {
       contentTypes: this.contentTypes,
     });
 
-    await this.db.schema.sync();
+    const status = await this.db.schema.sync();
+
+    // if schemas have changed, run repairs
+    if (status === 'CHANGED') {
+      await this.db.repair.removeOrphanMorphType({ pivot: 'component_type' });
+    }
 
     if (this.EE) {
       await ee.checkLicense({ strapi: this });

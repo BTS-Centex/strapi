@@ -1,6 +1,7 @@
 import type { LoadedStrapi } from '@strapi/types';
 import { isObject } from 'lodash/fp';
 
+import chalk from 'chalk';
 import {
   buildTransferTable,
   DEFAULT_IGNORED_CONTENT_TYPES,
@@ -33,6 +34,7 @@ interface CmdOptions {
   file?: string;
   decompress?: boolean;
   decrypt?: boolean;
+  verbose?: boolean;
   key?: string;
   conflictStrategy?: 'restore';
   force?: boolean;
@@ -104,10 +106,11 @@ export default async (opts: CmdOptions) => {
   };
 
   const destination = createLocalStrapiDestinationProvider(destinationOptions);
+  destination.onWarning = (message) => console.warn(`\n${chalk.yellow('warn')}: ${message}`);
 
   const engine = createTransferEngine(source, destination, engineOptions);
 
-  engine.diagnostics.onDiagnostic(formatDiagnostic('import'));
+  engine.diagnostics.onDiagnostic(formatDiagnostic('import', opts.verbose));
 
   const progress = engine.progress.stream;
 

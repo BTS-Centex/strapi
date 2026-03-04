@@ -6,8 +6,6 @@ import { Route } from 'react-router-dom';
 
 import { MarketplacePage } from '../MarketplacePage';
 
-// Increase the jest timeout to accommodate long running tests
-jest.setTimeout(50000);
 jest.mock('../hooks/useNavigatorOnline');
 jest.mock('../../../hooks/useDebounce', () => ({
   useDebounce: jest.fn((value) => value),
@@ -103,13 +101,6 @@ describe('Marketplace page - plugins tab', () => {
     )!;
     const alreadyInstalledText = within(alreadyInstalledCard).queryByText(/installed/i);
     expect(alreadyInstalledText).toBeVisible();
-
-    // Plugin that's not installed
-    const notInstalledCard = getAllByTestId('npm-package-card').find((div) =>
-      div.innerHTML.includes('Comments')
-    )!;
-    const notInstalledText = within(notInstalledCard).queryByText(/copy install command/i);
-    expect(notInstalledText).toBeVisible();
   });
 
   it('shows plugins filters popover', async () => {

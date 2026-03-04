@@ -14,23 +14,27 @@ import {
   Typography,
   ModalFooter,
 } from '@strapi/design-system';
+import { LinkButton } from '@strapi/design-system/v2';
 import {
   CheckPermissions,
+  NoContent,
   useAPIErrorHandler,
   useCMEditViewDataManager,
   useNotification,
 } from '@strapi/helper-plugin';
 import { Plus } from '@strapi/icons';
+import { Common } from '@strapi/types';
 import { isAxiosError } from 'axios';
 import { Formik, Form } from 'formik';
 import { useIntl } from 'react-intl';
-import { useParams } from 'react-router-dom';
+import { Link as ReactRouterLink } from 'react-router-dom';
 import * as yup from 'yup';
 
 import { CreateReleaseAction } from '../../../shared/contracts/release-actions';
 import { GetContentTypeEntryReleases } from '../../../shared/contracts/releases';
 import { PERMISSIONS } from '../constants';
 import { useCreateReleaseActionMutation, useGetReleasesForEntryQuery } from '../services/release';
+import { getTimezoneOffset } from '../utils/time';
 
 import { ReleaseActionMenu } from './ReleaseActionMenu';
 import { ReleaseActionOptions } from './ReleaseActionOptions';
@@ -39,17 +43,17 @@ import { ReleaseActionOptions } from './ReleaseActionOptions';
  * AddActionToReleaseModal
  * -----------------------------------------------------------------------------------------------*/
 
-const RELEASE_ACTION_FORM_SCHEMA = yup.object().shape({
+export const RELEASE_ACTION_FORM_SCHEMA = yup.object().shape({
   type: yup.string().oneOf(['publish', 'unpublish']).required(),
   releaseId: yup.string().required(),
 });
 
-interface FormValues {
+export interface FormValues {
   type: CreateReleaseAction.Request['body']['type'];
   releaseId: CreateReleaseAction.Request['params']['releaseId'];
 }
 
-const INITIAL_VALUES = {
+export const INITIAL_VALUES = {
   type: 'publish',
   releaseId: '',
 } satisfies FormValues;
@@ -60,14 +64,44 @@ interface AddActionToReleaseModalProps {
   entryId: GetContentTypeEntryReleases.Request['query']['entryId'];
 }
 
+export const NoReleases = () => {
+  const { formatMessage } = useIntl();
+  return (
+    <NoContent
+      content={{
+        id: 'content-releases.content-manager-edit-view.add-to-release.no-releases-message',
+        defaultMessage:
+          'No available releases. Open the list of releases and create a new one from there.',
+      }}
+      action={
+        <LinkButton
+          // @ts-expect-error - types are not inferred correctly through the as prop.
+          to={{
+            pathname: '/plugins/content-releases',
+          }}
+          as={ReactRouterLink}
+          variant="secondary"
+        >
+          {formatMessage({
+            id: 'content-releases.content-manager-edit-view.add-to-release.redirect-button',
+            defaultMessage: 'Open the list of releases',
+          })}
+        </LinkButton>
+      }
+    />
+  );
+};
+
 const AddActionToReleaseModal = ({
   handleClose,
   contentTypeUid,
   entryId,
 }: AddActionToReleaseModalProps) => {
+  const releaseHeaderId = React.useId();
   const { formatMessage } = useIntl();
   const toggleNotification = useNotification();
   const { formatAPIError } = useAPIErrorHandler();
+  const { modifiedData } = useCMEditViewDataManager();
 
   // Get all 'pending' releases that do not have the entry attached
   const response = useGetReleasesForEntryQuery({
@@ -80,9 +114,11 @@ const AddActionToReleaseModal = ({
   const [createReleaseAction, { isLoading }] = useCreateReleaseActionMutation();
 
   const handleSubmit = async (values: FormValues) => {
+    const locale = modifiedData.locale as string | undefined;
     const releaseActionEntry = {
       contentType: contentTypeUid,
       id: entryId,
+      locale,
     };
     const response = await createReleaseAction({
       body: { type: values.type, entry: releaseActionEntry },
@@ -121,9 +157,9 @@ const AddActionToReleaseModal = ({
   };
 
   return (
-    <ModalLayout onClose={handleClose} labelledBy="title">
+    <ModalLayout onClose={handleClose} labelledBy={releaseHeaderId}>
       <ModalHeader>
-        <Typography id="title" fontWeight="bold" textColor="neutral800">
+        <Typography id={releaseHeaderId} fontWeight="bold" textColor="neutral800">
           {formatMessage({
             id: 'content-releases.content-manager-edit-view.add-to-release',
             defaultMessage: 'Add to release',
@@ -138,42 +174,46 @@ const AddActionToReleaseModal = ({
         {({ values, setFieldValue }) => {
           return (
             <Form>
-              <ModalBody>
-                <Flex direction="column" alignItems="stretch" gap={2}>
-                  <Box paddingBottom={6}>
-                    <SingleSelect
-                      required
-                      label={formatMessage({
-                        id: 'content-releases.content-manager-edit-view.add-to-release.select-label',
-                        defaultMessage: 'Select a release',
+              {releases?.length === 0 ? (
+                <NoReleases />
+              ) : (
+                <ModalBody>
+                  <Flex direction="column" alignItems="stretch" gap={2}>
+                    <Box paddingBottom={6}>
+                      <SingleSelect
+                        required
+                        label={formatMessage({
+                          id: 'content-releases.content-manager-edit-view.add-to-release.select-label',
+                          defaultMessage: 'Select a release',
+                        })}
+                        placeholder={formatMessage({
+                          id: 'content-releases.content-manager-edit-view.add-to-release.select-placeholder',
+                          defaultMessage: 'Select',
+                        })}
+                        onChange={(value) => setFieldValue('releaseId', value)}
+                        value={values.releaseId}
+                      >
+                        {releases?.map((release) => (
+                          <SingleSelectOption key={release.id} value={release.id}>
+                            {release.name}
+                          </SingleSelectOption>
+                        ))}
+                      </SingleSelect>
+                    </Box>
+                    <FieldLabel>
+                      {formatMessage({
+                        id: 'content-releases.content-manager-edit-view.add-to-release.action-type-label',
+                        defaultMessage: 'What do you want to do with this entry?',
                       })}
-                      placeholder={formatMessage({
-                        id: 'content-releases.content-manager-edit-view.add-to-release.select-placeholder',
-                        defaultMessage: 'Select',
-                      })}
-                      onChange={(value) => setFieldValue('releaseId', value)}
-                      value={values.releaseId}
-                    >
-                      {releases?.map((release) => (
-                        <SingleSelectOption key={release.id} value={release.id}>
-                          {release.name}
-                        </SingleSelectOption>
-                      ))}
-                    </SingleSelect>
-                  </Box>
-                  <FieldLabel>
-                    {formatMessage({
-                      id: 'content-releases.content-manager-edit-view.add-to-release.action-type-label',
-                      defaultMessage: 'What do you want to do with this entry?',
-                    })}
-                  </FieldLabel>
-                  <ReleaseActionOptions
-                    selected={values.type}
-                    handleChange={(e) => setFieldValue('type', e.target.value)}
-                    name="type"
-                  />
-                </Flex>
-              </ModalBody>
+                    </FieldLabel>
+                    <ReleaseActionOptions
+                      selected={values.type}
+                      handleChange={(e) => setFieldValue('type', e.target.value)}
+                      name="type"
+                    />
+                  </Flex>
+                </ModalBody>
+              )}
               <ModalFooter
                 startActions={
                   <Button onClick={handleClose} variant="tertiary" name="cancel">
@@ -210,18 +250,20 @@ const AddActionToReleaseModal = ({
 
 export const CMReleasesContainer = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const { formatMessage } = useIntl();
+  const { formatMessage, formatDate, formatTime } = useIntl();
   const {
     isCreatingEntry,
-    allLayoutData: { contentType },
+    hasDraftAndPublish,
+    initialData: { id: entryId },
+    slug,
   } = useCMEditViewDataManager();
-  const params = useParams<{ id: string }>();
 
-  const canFetch = params?.id != null && contentType?.uid != null;
+  const contentTypeUid = slug as Common.UID.ContentType;
+  const canFetch = entryId != null && contentTypeUid != null;
   const fetchParams = canFetch
     ? {
-        contentTypeUid: contentType.uid,
-        entryId: params.id,
+        contentTypeUid: contentTypeUid,
+        entryId: entryId,
         hasEntryAttached: true,
       }
     : skipToken;
@@ -230,8 +272,7 @@ export const CMReleasesContainer = () => {
   const releases = response.data?.data;
 
   /**
-   * If we don't have a contentType.uid or params.id then the data was never fetched
-   * TODO: Should we handle this with an error message in the UI or just not show the container?
+   * If we don't have a contentTypeUid or entryId then the data was never fetched
    */
   if (!canFetch) {
     return null;
@@ -242,7 +283,7 @@ export const CMReleasesContainer = () => {
    * - Content types without draft and publish cannot add entries to release
    * TODO v5: All contentTypes will have draft and publish enabled
    */
-  if (isCreatingEntry || !contentType?.options?.draftAndPublish) {
+  if (isCreatingEntry || !hasDraftAndPublish) {
     return null;
   }
 
@@ -288,7 +329,7 @@ export const CMReleasesContainer = () => {
                 alignItems="start"
                 borderWidth="1px"
                 borderStyle="solid"
-                borderColor={getReleaseColorVariant(release.action.type, '200')}
+                borderColor={getReleaseColorVariant(release.actions[0].type, '200')}
                 overflow="hidden"
                 hasRadius
               >
@@ -297,13 +338,13 @@ export const CMReleasesContainer = () => {
                   paddingBottom={3}
                   paddingLeft={4}
                   paddingRight={4}
-                  background={getReleaseColorVariant(release.action.type, '100')}
+                  background={getReleaseColorVariant(release.actions[0].type, '100')}
                   width="100%"
                 >
                   <Typography
                     fontSize={1}
                     variant="pi"
-                    textColor={getReleaseColorVariant(release.action.type, '600')}
+                    textColor={getReleaseColorVariant(release.actions[0].type, '600')}
                   >
                     {formatMessage(
                       {
@@ -311,15 +352,49 @@ export const CMReleasesContainer = () => {
                         defaultMessage:
                           '{isPublish, select, true {Will be published in} other {Will be unpublished in}}',
                       },
-                      { isPublish: release.action.type === 'publish' }
+                      { isPublish: release.actions[0].type === 'publish' }
                     )}
                   </Typography>
                 </Box>
-                <Flex padding={4} direction="column" gap={3} width="100%" alignItems="flex-start">
+                <Flex padding={4} direction="column" gap={2} width="100%" alignItems="flex-start">
                   <Typography fontSize={2} fontWeight="bold" variant="omega" textColor="neutral700">
                     {release.name}
                   </Typography>
-                  <ReleaseActionMenu releaseId={release.id} actionId={release.action.id} />
+                  {release.scheduledAt && release.timezone && (
+                    <Typography variant="pi" textColor="neutral600">
+                      {formatMessage(
+                        {
+                          id: 'content-releases.content-manager-edit-view.scheduled.date',
+                          defaultMessage: '{date} at {time} ({offset})',
+                        },
+                        {
+                          date: formatDate(new Date(release.scheduledAt), {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            timeZone: release.timezone,
+                          }),
+                          time: formatTime(new Date(release.scheduledAt), {
+                            hourCycle: 'h23',
+                            timeZone: release.timezone,
+                          }),
+                          offset: getTimezoneOffset(
+                            release.timezone,
+                            new Date(release.scheduledAt)
+                          ),
+                        }
+                      )}
+                    </Typography>
+                  )}
+                  <CheckPermissions permissions={PERMISSIONS.deleteAction}>
+                    <ReleaseActionMenu.Root hasTriggerBorder>
+                      <ReleaseActionMenu.EditReleaseItem releaseId={release.id} />
+                      <ReleaseActionMenu.DeleteReleaseActionItem
+                        releaseId={release.id}
+                        actionId={release.actions[0].id}
+                      />
+                    </ReleaseActionMenu.Root>
+                  </CheckPermissions>
                 </Flex>
               </Flex>
             );
@@ -344,8 +419,8 @@ export const CMReleasesContainer = () => {
         {isModalOpen && (
           <AddActionToReleaseModal
             handleClose={toggleModal}
-            contentTypeUid={contentType.uid}
-            entryId={params.id}
+            contentTypeUid={contentTypeUid}
+            entryId={entryId}
           />
         )}
       </Box>
